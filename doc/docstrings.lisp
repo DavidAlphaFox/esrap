@@ -577,7 +577,7 @@ an item in an itemization."
                (when sub-lines-consumed
                  (incf line-number (1- sub-lines-consumed)) ; +1 on next loop
                  (incf lines-consumed sub-lines-consumed)
-                 (setf result (nconc (nreverse sub-itemization) result)))))
+                 (setf result (append (reverse sub-itemization) result)))))
             ((and offset (= indentation this-offset))
              ;; start of new item
              (push (format nil "@item ~A"
@@ -747,9 +747,14 @@ followed another tabulation label or a tabulation body."
             ;; interactions,so we escape the ampersand -- amusingly for TeX.
             ;; sbcl.texinfo defines macros that expand @&key and friends to &key.
             (mapcar (lambda (name)
-                      (if (member name lambda-list-keywords)
-                          (format nil "@~A" name)
-                          name))
+                      (cond
+                        ((and (member name lambda-list-keywords)
+                              (char= #\& (aref (string name) 0)))
+                         (format nil "@amp-~A" (subseq (string name) 1)))
+                        ((member name lambda-list-keywords)
+                         (format nil "@~A" name))
+                        (t
+                         name)))
                     (lambda-list doc)))))
 
 (defun texinfo-index (doc)
@@ -858,11 +863,12 @@ package, as well as for the package itself."
     ,@forms))
 
 (defun write-ifnottex ()
-  ;; We use @&key, etc to escape & from TeX in lambda lists -- so we need to
-  ;; define them for info as well.
+  ;; We use @amp-key, etc to escape & from TeX in lambda lists -- so
+  ;; we need to define them for info as well.
   (flet ((macro (name)
                  (let ((string (string-downcase name)))
-                   (format *texinfo-output* "@macro ~A~%~A~%@end macro~%" string string))))
+                   (format *texinfo-output* "@macro amp-~A~%~A~%@end macro~%"
+                           (subseq string 1) string))))
     (macro '&allow-other-keys)
     (macro '&optional)
     (macro '&rest)
